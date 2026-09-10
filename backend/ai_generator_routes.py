@@ -32,9 +32,13 @@ import os
 import uuid
 from typing import Optional
 
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+# pyrefly: ignore [missing-import]
 from fastapi import status as http_status
+# pyrefly: ignore [missing-import]
 from pydantic import ValidationError
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
 import schemas
@@ -358,6 +362,7 @@ async def extract_source(
 
     try:
         if name.endswith(".pdf") or (file.content_type or "").startswith("application/pdf"):
+            # pyrefly: ignore [missing-import]
             import fitz  # pymupdf
             doc = fitz.open(stream=contents, filetype="pdf")
             parts = []
@@ -368,7 +373,9 @@ async def extract_source(
             pages = len(parts)
         elif name.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff")) \
                 or (file.content_type or "").startswith("image/"):
+            # pyrefly: ignore [missing-import]
             import pytesseract
+            # pyrefly: ignore [missing-import]
             from PIL import Image
             img = Image.open(io.BytesIO(contents))
             text = pytesseract.image_to_string(img)
