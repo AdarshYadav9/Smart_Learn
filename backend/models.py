@@ -1,5 +1,7 @@
 from datetime import datetime
+# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, Enum, Table, Numeric, create_engine
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship, declarative_base
 import enum
 
