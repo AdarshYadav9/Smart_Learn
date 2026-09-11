@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 import pytest
 from main import app, get_current_user
 
@@ -641,6 +642,61 @@ def test_experiment_guidance_ambiguous_question_identified(client):
     assert len(data.get("suggested_measurable_question", "")) > 15
 
 
+def test_adaptive_test_generation(client):
+    app.dependency_overrides[get_current_user] = _user
+    payload = {"topic": "Data Structures", "current_level": "beginner", "question_count": 5}
+    response = client.post("/api/tools/adaptive-test", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["topic"] == "Data Structures"
+    assert len(data["questions"]) == 5
+    assert data["starting_level"] == "beginner"
 
 
+def test_career_guidance(client):
+    app.dependency_overrides[get_current_user] = _user
+    payload = {"interests": ["python", "machine learning"], "skills": ["statistics"], "goals": "Become a Data Scientist"}
+    response = client.post("/api/tools/career-guidance", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "tracks" in data
+    assert any("Data" in t["track"] for t in data["tracks"])
 
+
+def test_timetable_generation(client):
+    app.dependency_overrides[get_current_user] = _user
+    payload = {"courses": ["Math", "Physics", "Chemistry"], "available_days": ["Monday", "Tuesday", "Wednesday"], "start_hour": 9, "end_hour": 15}
+    response = client.post("/api/tools/timetable", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "schedule" in data
+    assert len(data["schedule"]) == 3
+
+
+def test_workload_balancing(client):
+    app.dependency_overrides[get_current_user] = _user
+    payload = {"faculty": ["Prof. Smith", "Prof. Doe"], "courses": ["CS101", "CS102", "CS103"], "weekly_hours": 30}
+    response = client.post("/api/tools/workload", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "assignments" in data
+    assert data["total_hours"] > 0
+
+
+def test_communication_draft(client):
+    app.dependency_overrides[get_current_user] = _user
+    payload = {"purpose": "Assignment Deadline Extension", "audience": "students", "key_points": ["Grace period 24 hours", "Submit via portal"], "tone": "encouraging"}
+    response = client.post("/api/tools/communication-draft", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "draft" in data or "subject" in data or "body" in data
+
+
+def test_flashcards_generation(client):
+    app.dependency_overrides[get_current_user] = _user
+    payload = {"topic": "Binary Search Trees", "count": 6, "difficulty": "exam_ready"}
+    response = client.post("/api/flashcards", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "cards" in data
+    assert len(data["cards"]) >= 4
