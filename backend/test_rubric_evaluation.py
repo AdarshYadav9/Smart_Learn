@@ -3,10 +3,15 @@ from unittest.mock import patch
 
 sys.path.insert(0, ".")
 
+# pyrefly: ignore [missing-import]
 import pytest
+# pyrefly: ignore [missing-import]
 from fastapi.testclient import TestClient
+# pyrefly: ignore [missing-import]
 from sqlalchemy import create_engine
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import sessionmaker
+# pyrefly: ignore [missing-import]
 from sqlalchemy.pool import StaticPool
 
 from database import Base, get_db
@@ -62,7 +67,11 @@ def trends_client():
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: {"id": "teacher-1", "role": "teacher"}
     try:
-        yield TestClient(app)
+        from conftest import _CompatibleTestClient
+        try:
+            yield TestClient(app)
+        except TypeError:
+            yield _CompatibleTestClient(app)
     finally:
         app.dependency_overrides.clear()
         Base.metadata.drop_all(bind=engine)
