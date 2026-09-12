@@ -1,8 +1,3 @@
-"""Deterministic academic productivity tools for the local application.
-
-These endpoints intentionally avoid external model calls. They provide useful,
-explainable defaults and leave room for an optional AI layer above them later.
-"""
 from __future__ import annotations
 
 import logging
@@ -10,11 +5,16 @@ import re
 from collections import Counter
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header
+# pyrefly: ignore [missing-import]
+from fastapi import APIRouter, Depends
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
 from database import get_db
+
+logger = logging.getLogger("tools_routes")
 
 router = APIRouter(prefix="/tools", tags=["academic-tools"])
 
@@ -228,16 +228,92 @@ def wellness_support(payload: WellnessRequest, _: Dict[str, Any] = Depends(_user
                 "or a crisis hotline in your country right now."
             ),
             "is_crisis_signal": True,
+            "category": "Immediate Crisis Support",
             "suggestions": [
                 "Move to a safer shared space and stay with someone you trust.",
                 "Tell a trusted person clearly that you may be at risk of harming yourself.",
                 "Contact local emergency services or crisis support if danger is immediate.",
             ],
+            "hotlines": [
+                {"name": "Tele-MANAS Mental Health Helpline", "number": "14416 / 1800-891-4416 (24/7 Free)"},
+                {"name": "KIRAN Mental Health Line", "number": "1800-599-0019"},
+                {"name": "Vandrevala Foundation Helpline", "number": "+91 9999 666 555"},
+                {"name": "Emergency Services", "number": "112 / 911"},
+            ],
             "disclaimer": "This assistant is not a clinician and cannot diagnose or provide emergency care.",
         }
 
-    response = "It sounds like this is weighing on you. Consider a short pause, water, a trusted person, and one manageable next step."
-    return {"supportive_message": response, "is_crisis_signal": False, "suggestions": ["Take slow breaths for one minute.", "Contact a trusted friend, counselor, or campus support service.", "Reduce the task to the next ten-minute step."], "disclaimer": "This assistant is not a clinician and cannot diagnose or provide emergency care."}
+    # For non-crisis academic stress, burnout, anxiety, overwhelm:
+    # Try Gemini to generate deeply empathetic, tailored academic wellness guidance
+    try:
+        from services.ai import get_provider
+        provider = get_provider()
+        system = (
+            "You are a compassionate, empathetic student wellness and academic mindset coach. "
+            "Help the student process their academic stress, burnout, exam anxiety, or study fatigue. "
+            "Validate their feelings with warmth and reassurance. Provide 3-4 gentle, actionable micro-steps "
+            "(like 2-minute breathing, task breakdown, hydration, positive reframing). Keep answers reassuring, structured, and under 150 words."
+        )
+        user = f"Student message: \"{payload.message}\""
+        schema = {
+            "type": "object",
+            "properties": {
+                "supportive_message": {"type": "string", "description": "Warm, empathetic paragraph acknowledging their specific struggle and reassuring them."},
+                "academic_reassurance": {"type": "string", "description": "One comforting reminder about pacing and long-term perspective."},
+                "suggestions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "3-4 actionable, gentle micro-steps (e.g. 4-7-8 breathing, 5-minute break, breaking problem down)."
+                },
+                "breathing_exercise": {
+                    "type": "string",
+                    "description": "Quick 1-sentence breathing or grounding technique."
+                }
+            },
+            "required": ["supportive_message", "suggestions"]
+        }
+        res = provider.generate_json(system, user, json_schema=schema, temperature=0.3)
+        if isinstance(res, dict) and "supportive_message" in res and res["supportive_message"]:
+            return {
+                "supportive_message": res["supportive_message"],
+                "is_crisis_signal": False,
+                "academic_reassurance": res.get("academic_reassurance", "Remember: one exam or assignment does not define your worth or potential."),
+                "suggestions": res.get("suggestions", [
+                    "Take slow deep breaths for one minute.",
+                    "Contact a trusted friend, counselor, or campus support service.",
+                    "Reduce the task to the next ten-minute step."
+                ]),
+                "breathing_exercise": res.get("breathing_exercise", "Box Breathing: Inhale for 4s, hold for 4s, exhale for 4s, hold for 4s."),
+                "hotlines": [
+                    {"name": "Tele-MANAS Helpline (24/7)", "number": "14416 / 1800-891-4416"},
+                    {"name": "KIRAN Helpline", "number": "1800-599-0019"},
+                ],
+                "disclaimer": "This assistant is not a clinician and cannot diagnose or provide emergency care."
+            }
+    except Exception as e:
+        logger.warning("Gemini wellness generation fallback: %s", e)
+
+    # High quality offline fallback
+    response = (
+        "It sounds like this is weighing on you. Studying and academic deadlines can feel overwhelmingly heavy, "
+        "but you do not have to carry everything at once. Take a moment to breathe, hydrate, and know that taking small breaks actually restores brain performance."
+    )
+    return {
+        "supportive_message": response,
+        "is_crisis_signal": False,
+        "academic_reassurance": "Your health and well-being always come first. Break big goals into tiny, low-pressure steps.",
+        "suggestions": [
+            "Take slow breaths for one minute.",
+            "Contact a trusted friend, counselor, or campus support service.",
+            "Reduce the task to the next ten-minute step."
+        ],
+        "breathing_exercise": "4-7-8 Breathing: Inhale through nose for 4s, hold for 7s, exhale through mouth for 8s.",
+        "hotlines": [
+            {"name": "Tele-MANAS Helpline (24/7)", "number": "14416 / 1800-891-4416"},
+            {"name": "KIRAN Helpline", "number": "1800-599-0019"},
+        ],
+        "disclaimer": "This assistant is not a clinician and cannot diagnose or provide emergency care."
+    }
 
 
 @router.post("/timetable")
@@ -1157,9 +1233,6 @@ def _generate_grounded_citation(payload: CitationRequest) -> Dict[str, Any]:
 @router.post("/citation")
 def citation(payload: CitationRequest, _: Dict[str, Any] = Depends(_user)):
     return _generate_grounded_citation(payload)
-
-
-logger = logging.getLogger("tools_routes.debugging")
 
 
 def _diagnose_and_fix_code(payload: DebugRequest) -> Dict[str, Any]:
