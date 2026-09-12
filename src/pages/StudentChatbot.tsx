@@ -12,12 +12,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/PageHeader";
+import FlashcardsModal from "@/components/FlashcardsModal";
 import {
   Send, Bot, User, Loader2, FileText, Headphones, Sparkles,
   BookOpen, Lightbulb, PlayCircle, PauseCircle, MessageSquare, Wand2,
-  Upload, X, RefreshCw, Volume2, HelpCircle
+  Upload, X, RefreshCw, Volume2, HelpCircle, Zap, Layers, CreditCard, Heart
 } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -40,6 +41,8 @@ export default function StudentChatbot() {
   const location = useLocation();
   const initialParams = location.state as ChatLocationState | null;
 
+  const navigate = useNavigate();
+
   const [currentMaterial, setCurrentMaterial] = useState<MaterialContext | null>(
     initialParams?.material || null
   );
@@ -47,8 +50,11 @@ export default function StudentChatbot() {
     initialParams?.classroom?.name || ""
   );
 
+  const [flashcardsOpen, setFlashcardsOpen] = useState(false);
+  const [flashcardsTopic, setFlashcardsTopic] = useState("");
+
   const initialGreeting = currentMaterial?.fileName
-    ? `Hello! I'm your AcademiQ AI Tutor. I'm ready to help you explore and master "${currentMaterial.fileName}". Ask any questions, or click a quick prompt below!`
+    ? `Hello! I'm your AcademiQ AI Tutor. I'm ready to help you explore and master "${currentMaterial.fileName}". Ask any questions, generate active-recall flashcards for exam prep, or click a quick prompt below!`
     : "Hello! I'm your AcademiQ AI Academic Tutor. How can I assist you with your studies, coursework, or exam prep today?";
 
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -243,13 +249,15 @@ export default function StudentChatbot() {
   const hasSource = !!currentMaterial;
 
   const defaultStarterPrompts = [
-    { label: "🍎 Newton's Laws", prompt: "Explain Newton's Laws of Motion with real-world examples." },
-    { label: "🔍 Binary Search", prompt: "Explain Binary Search algorithm and its time complexity step-by-step." },
-    { label: "💻 4 OOP Pillars", prompt: "Explain the four pillars of Object-Oriented Programming with code examples." },
-    { label: "💡 Exam Study Tips", prompt: "Give me the top active recall and spaced repetition study strategies for college exams." },
+    { label: "⚡ Exam Flashcards", prompt: "Open Flashcards Deck", action: () => { setFlashcardsTopic("Exam High-Yield Concepts"); setFlashcardsOpen(true); } },
+    { label: "🍎 Newton's Laws", prompt: "Explain Newton's Laws of Motion with real-world examples.", action: () => handleSend("Explain Newton's Laws of Motion with real-world examples.") },
+    { label: "🔍 Binary Search", prompt: "Explain Binary Search algorithm and its time complexity step-by-step.", action: () => handleSend("Explain Binary Search algorithm and its time complexity step-by-step.") },
+    { label: "💻 4 OOP Pillars", prompt: "Explain the four pillars of Object-Oriented Programming with code examples.", action: () => handleSend("Explain the four pillars of Object-Oriented Programming with code examples.") },
+    { label: "💡 Exam Study Tips", prompt: "Give me the top active recall and spaced repetition study strategies for college exams.", action: () => handleSend("Give me the top active recall and spaced repetition study strategies for college exams.") },
   ];
 
   const sourcePrompts = [
+    { label: "⚡ Exam Flashcards", prompt: "Create Flashcards", action: () => { setFlashcardsTopic(currentMaterial?.fileName ? `Revision: ${currentMaterial.fileName}` : ""); setFlashcardsOpen(true); } },
     { label: "📚 Summarize Document", prompt: "Summarize the key concepts and main takeaways of the loaded document.", action: () => handleSend("Please summarize the main concepts and core takeaways of this document.") },
     { label: "🎯 Generate Study Guide", prompt: "Generate a structured study guide with learning objectives and review questions.", action: handleGenerateStudyGuide },
     { label: "❓ Key FAQs", prompt: "What are the most frequent exam questions or FAQs from this material?", action: () => handleSend("What are the most critical FAQs and expected exam questions from this document?") },
@@ -351,68 +359,114 @@ export default function StudentChatbot() {
                 )}
               </div>
 
-              {/* Audio Overview Podcast Simulator */}
-              <div className="pt-4 border-t border-border/50">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                  <Headphones className="h-3.5 w-3.5 text-primary" /> Deep Dive Audio Overview
-                </p>
-                {audioReady ? (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.4 }}
-                    className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4 text-center space-y-3 shadow-inner"
-                  >
-                    <div className="flex items-center justify-between text-xs text-primary font-medium px-1">
-                      <span className="flex items-center gap-1">
-                        <Volume2 className="h-3.5 w-3.5 animate-pulse" /> AI Voice
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">Synthesized</span>
-                    </div>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={handlePlayAudio}
-                      className="w-full gap-2 rounded-full font-semibold shadow-md h-10"
-                    >
-                      {audioPlaying ? (
-                        <>
-                          <PauseCircle className="h-5 w-5 fill-white text-primary" /> Pause Audio
-                        </>
-                      ) : (
-                        <>
-                          <PlayCircle className="h-5 w-5 fill-white text-primary" /> Play Deep Dive Audio
-                        </>
-                      )}
-                    </Button>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      {currentMaterial?.fileName
-                        ? `Discussing: ${currentMaterial.fileName}`
-                        : "Discussing current academic topic"}
-                    </p>
-                  </motion.div>
-                ) : (
+                {/* Audio Overview Podcast Simulator */}
+              <div className="pt-4 border-t border-border/50 space-y-4">
+                {/* ── Exam Flashcards Quick Trigger ── */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 flex items-center gap-1.5">
+                    <Zap className="h-3.5 w-3.5 text-amber-500" /> Exam Prep Flashcards
+                  </p>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-sm bg-background/50 h-auto py-3 gap-3 border-dashed hover:border-primary/50 hover:bg-primary/5 transition-all"
-                    onClick={handleGenerateAudio}
-                    disabled={audioGenerating}
+                    className="w-full justify-start text-sm bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent h-auto py-3 gap-3 border-amber-500/30 hover:border-amber-500/60 hover:bg-amber-500/15 transition-all group"
+                    onClick={() => {
+                      setFlashcardsTopic(currentMaterial?.fileName ? `Revision: ${currentMaterial.fileName}` : "");
+                      setFlashcardsOpen(true);
+                    }}
                   >
-                    {audioGenerating ? (
-                      <Loader2 className="h-5 w-5 text-primary animate-spin" />
-                    ) : (
-                      <Sparkles className="h-5 w-5 text-primary" />
-                    )}
+                    <div className="p-2 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">
+                      <Layers className="h-4 w-4" />
+                    </div>
                     <div className="text-left flex-1 min-w-0">
-                      <p className="font-semibold text-foreground text-xs">
-                        {audioGenerating ? "Synthesizing Audio..." : "Generate Audio Overview"}
+                      <p className="font-semibold text-foreground text-xs flex items-center gap-1.5">
+                        Active Recall Cards
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                          AI Powered
+                        </Badge>
                       </p>
                       <p className="text-[11px] text-muted-foreground truncate">
-                        {hasSource ? "Two AI hosts discuss your document" : "Audio breakdown of current study topic"}
+                        {hasSource ? `Study 3D flip cards for ${currentMaterial.fileName}` : "Practice high-yield exam questions & formulas"}
                       </p>
                     </div>
                   </Button>
-                )}
+                </div>
+
+                {/* Audio Podcast Overview */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5 flex items-center gap-1.5">
+                    <Headphones className="h-3.5 w-3.5 text-primary" /> Deep Dive Audio Overview
+                  </p>
+                  {audioReady ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.4 }}
+                      className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4 text-center space-y-3 shadow-inner"
+                    >
+                      <div className="flex items-center justify-between text-xs text-primary font-medium px-1">
+                        <span className="flex items-center gap-1">
+                          <Volume2 className="h-3.5 w-3.5 animate-pulse" /> AI Voice
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">Synthesized</span>
+                      </div>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handlePlayAudio}
+                        className="w-full gap-2 rounded-full font-semibold shadow-md h-10"
+                      >
+                        {audioPlaying ? (
+                          <>
+                            <PauseCircle className="h-5 w-5 fill-white text-primary" /> Pause Audio
+                          </>
+                        ) : (
+                          <>
+                            <PlayCircle className="h-5 w-5 fill-white text-primary" /> Play Deep Dive Audio
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {currentMaterial?.fileName
+                          ? `Discussing: ${currentMaterial.fileName}`
+                          : "Discussing current academic topic"}
+                      </p>
+                    </motion.div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-sm bg-background/50 h-auto py-3 gap-3 border-dashed hover:border-primary/50 hover:bg-primary/5 transition-all"
+                      onClick={handleGenerateAudio}
+                      disabled={audioGenerating}
+                    >
+                      {audioGenerating ? (
+                        <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                      ) : (
+                        <Sparkles className="h-5 w-5 text-primary" />
+                      )}
+                      <div className="text-left flex-1 min-w-0">
+                        <p className="font-semibold text-foreground text-xs">
+                          {audioGenerating ? "Synthesizing Audio..." : "Generate Audio Overview"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {hasSource ? "Two AI hosts discuss your document" : "Audio breakdown of current study topic"}
+                        </p>
+                      </div>
+                    </Button>
+                  )}
+                </div>
+
+                {/* Mindset & Wellness Support Link */}
+                <div className="pt-2 border-t border-border/40">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate("/academic-tools")}
+                    className="w-full justify-start text-xs h-8 px-2 text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 gap-2 hover:bg-emerald-500/10"
+                  >
+                    <Heart className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Feeling stressed? Open Wellness Support</span>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -439,6 +493,19 @@ export default function StudentChatbot() {
               </div>
 
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFlashcardsTopic(currentMaterial?.fileName ? `Revision: ${currentMaterial.fileName}` : "");
+                    setFlashcardsOpen(true);
+                  }}
+                  className="h-8 px-2.5 text-xs gap-1.5 font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                >
+                  <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Exam Flashcards</span>
+                </Button>
+
                 {hasSource && (
                   <Badge variant="secondary" className="bg-primary/10 text-primary border-0 text-xs hidden sm:inline-flex">
                     <BookOpen className="h-3 w-3 mr-1" />
@@ -532,7 +599,11 @@ export default function StudentChatbot() {
                               onClick={sp.action}
                               className="justify-start text-xs h-9 rounded-xl bg-white dark:bg-zinc-900 shadow-xs border-border hover:border-primary/50 hover:bg-primary/5 transition-colors"
                             >
-                              <Lightbulb className="h-3.5 w-3.5 mr-2 text-amber-500 shrink-0" />
+                              {sp.label.includes("Flashcard") ? (
+                                <Zap className="h-3.5 w-3.5 mr-2 text-amber-500 shrink-0" />
+                              ) : (
+                                <Lightbulb className="h-3.5 w-3.5 mr-2 text-amber-500 shrink-0" />
+                              )}
                               <span className="truncate">{sp.label}</span>
                             </Button>
                           ))
@@ -541,10 +612,14 @@ export default function StudentChatbot() {
                               key={idx}
                               variant="outline"
                               size="sm"
-                              onClick={() => handleSend(dp.prompt)}
+                              onClick={dp.action || (() => handleSend(dp.prompt))}
                               className="justify-start text-xs h-9 rounded-xl bg-white dark:bg-zinc-900 shadow-xs border-border hover:border-primary/50 hover:bg-primary/5 transition-colors"
                             >
-                              <MessageSquare className="h-3.5 w-3.5 mr-2 text-primary shrink-0" />
+                              {dp.label.includes("Flashcard") ? (
+                                <Zap className="h-3.5 w-3.5 mr-2 text-amber-500 shrink-0" />
+                              ) : (
+                                <MessageSquare className="h-3.5 w-3.5 mr-2 text-primary shrink-0" />
+                              )}
                               <span className="truncate">{dp.label}</span>
                             </Button>
                           ))}
@@ -597,6 +672,16 @@ export default function StudentChatbot() {
         </div>
 
       </motion.div>
+
+      {/* ── Exam Flashcards Active Recall Modal ── */}
+      <FlashcardsModal
+        open={flashcardsOpen}
+        onOpenChange={setFlashcardsOpen}
+        defaultTopic={flashcardsTopic}
+        sourceText={currentMaterial?.extractedText}
+        sourceFileName={currentMaterial?.fileName}
+        language={i18n.language === "hi" ? "Hindi" : i18n.language === "mr" ? "Marathi" : "English"}
+      />
     </DashboardLayout>
   );
 }
